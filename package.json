@@ -1,0 +1,12 @@
+{
+  "name": "crawlee-app",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "start": "concurrently \"yarn workspace backend start\" \"yarn workspace frontend start\""
+  }
+}
