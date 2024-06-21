@@ -1,0 +1,25 @@
+.icon {
+    width: 22px;
+    height: 22px;
+  }
+  
+  .dark {
+    display: block;
+  }
+  
+  .dark:global(.mantine-dark-scheme) {
+    display: none;
+  }
+  
+  .light {
+    display: none;
+  }
+  
+  .light:global(.mantine-dark-scheme) {
+    display: block;
+  }
+
+  .title {
+    flex-grow: 1;
+    text-align: center;
+  }
