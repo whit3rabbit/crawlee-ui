@@ -32,7 +32,7 @@ const ConfigurationForm: React.FC = () => {
       globPatterns: 'https://crawlee.dev/*/*',
       excludeGlobPatterns: '/**/*.{png,jpg,jpeg,pdf}',
       urlFragments: false,
-      injectJQuery: true, 
+      injectJQuery: false, 
       pageFunction: `// The function accepts a single argument: the "context" object.
 // For a complete list of its properties and functions,
 // see https://apify.com/apify/web-scraper#page-function 
