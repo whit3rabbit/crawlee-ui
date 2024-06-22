@@ -1,32 +1,23 @@
 import React from 'react';
-import { ActionIcon, useMantineColorScheme, Container, Title, Group } from '@mantine/core';
-import { IconSun, IconMoon } from '@tabler/icons-react';
-import cx from 'clsx';
-import classes from './App.module.css';
+import { Provider } from 'react-redux';
+import { MantineProvider, Container, Title, Group } from '@mantine/core';
+import { store } from './store';
 import ConfigurationForm from './components/ConfigurationForm';
+import ResultsDisplay from './components/ResultsDisplay';
 
 const App: React.FC = () => {
-  const { colorScheme, toggleColorScheme } = useMantineColorScheme();
-
   return (
-    <Container>
-      <Group align="center" justify="space-between">
-        <Title className={classes.title}>Crawlee Configuration</Title>
-        <ActionIcon
-          onClick={() => toggleColorScheme()}
-          variant="default"
-          size="lg"
-          aria-label="Toggle color scheme"
-        >
-          {colorScheme === 'dark' ? (
-            <IconSun className={cx(classes.icon, classes.light)} stroke={1.5} />
-          ) : (
-            <IconMoon className={cx(classes.icon, classes.dark)} stroke={1.5} />
-          )}
-        </ActionIcon>
-      </Group>
-      <ConfigurationForm />
-    </Container>
+    <Provider store={store}>
+      <MantineProvider defaultColorScheme="dark">
+        <Container>
+          <Group align="center" justify="space-between">
+            <Title>Crawlee Configuration</Title>
+          </Group>
+          <ConfigurationForm />
+          <ResultsDisplay />
+        </Container>
+      </MantineProvider>
+    </Provider>
   );
 };
 
