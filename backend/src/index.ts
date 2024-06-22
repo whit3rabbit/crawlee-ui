@@ -10,6 +10,7 @@ import joi from 'joi';
 import rateLimit from 'express-rate-limit';
 import { createLogger, format, transports } from 'winston';
 import { sanitize } from 'isomorphic-dompurify';
+import { uuid } from 'uuidv4';
 
 // Load environment variables
 dotenv.config();
@@ -128,8 +129,9 @@ const performCrawl = async (config: CrawlerConfig) => {
     });
     Configuration.useStorageClient(memoryStorage);
 
-    // Create a new Dataset instance
-    const dataset = await Dataset.open(null);
+    // Create a new Dataset instance with a unique name
+    const datasetName = `crawl-${uuid()}`;
+    const dataset = await Dataset.open(datasetName);
 
     const crawler = new PuppeteerCrawler({
         maxConcurrency: parseInt(process.env.MAX_CONCURRENT_REQUESTS || '10'),
