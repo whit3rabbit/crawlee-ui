@@ -13,8 +13,14 @@ interface FormData {
   globPatterns: string;
   excludeGlobPatterns: string;
   urlFragments: boolean;
-  injectJQuery: boolean;
   pageFunction: string;
+  injectJQuery: boolean;
+}
+
+interface CrawlResult {
+  url: string;
+  pageTitle: string;
+  [key: string]: any; 
 }
 
 const ConfigurationForm: React.FC = () => {
@@ -26,7 +32,7 @@ const ConfigurationForm: React.FC = () => {
       globPatterns: 'https://crawlee.dev/*/*',
       excludeGlobPatterns: '/**/*.{png,jpg,jpeg,pdf}',
       urlFragments: false,
-      injectJQuery: false,
+      injectJQuery: true, 
       pageFunction: `// The function accepts a single argument: the "context" object.
 // For a complete list of its properties and functions,
 // see https://apify.com/apify/web-scraper#page-function 
@@ -55,18 +61,28 @@ async function pageFunction(context) {
   const onSubmit = async (data: FormData) => {
     dispatch(startCrawl());
     try {
+      // Prepare the data to match the backend schema
+      const preparedData = {
+        ...data,
+        globPatterns: data.globPatterns.split(',').map(pattern => pattern.trim()),
+        excludeGlobPatterns: data.excludeGlobPatterns.split(',').map(pattern => pattern.trim())
+      };
+
       const response = await fetch('http://localhost:3001/start-crawl', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(preparedData),
       });
+      
       if (!response.ok) {
-        throw new Error('Failed to start crawl');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to start crawl');
       }
-      const result = await response.json();
-      dispatch(crawlSuccess(result));
+      
+      const results: CrawlResult[] = await response.json();
+      dispatch(crawlSuccess(results));
     } catch (error) {
       if (error instanceof Error) {
         dispatch(crawlFailure(error.message));

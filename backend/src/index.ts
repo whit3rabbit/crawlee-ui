@@ -1,10 +1,10 @@
 import express, { Request, Response, NextFunction } from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
-import { PuppeteerCrawler } from 'crawlee';
+import { PuppeteerCrawler, PuppeteerCrawlingContext, Dataset, Configuration } from 'crawlee';
+import { MemoryStorage } from '@crawlee/memory-storage';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import path from 'path';
 import dotenv from 'dotenv';
 import joi from 'joi';
 import rateLimit from 'express-rate-limit';
@@ -60,7 +60,7 @@ const crawlSchema = joi.object({
   globPatterns: joi.array().items(joi.string()),
   excludeGlobPatterns: joi.array().items(joi.string()),
   urlFragments: joi.boolean(),
-  injectJQuery: joi.boolean(),
+  injectJQuery: joi.boolean().required(),
   pageFunction: joi.string().required()
 });
 
@@ -70,83 +70,199 @@ const errorHandler = (err: Error, req: Request, res: Response, next: NextFunctio
   res.status(500).json({ error: 'Internal Server Error' });
 };
 
-// Define CrawlerConfig interface
+// Define interfaces
+interface PageFunctionResult {
+  url: string;
+  pageTitle: string;
+  [key: string]: any; // Allow for additional properties
+}
+
 interface CrawlerConfig {
   startUrls: string[];
   linkSelector: string;
   globPatterns?: string[];
   excludeGlobPatterns?: string[];
   urlFragments?: boolean;
-  injectJQuery?: boolean;
+  injectJQuery: boolean;
   pageFunction: string;
+}
+
+interface CustomContext extends PuppeteerCrawlingContext {
+    jQuery?: any;
+}
+
+function sanitizeContext(context: CustomContext): any {
+    const sanitized: any = {};
+    const allowedProperties = ['url', 'jQuery', 'log'];
+    
+    for (const prop of allowedProperties) {
+      if (prop in context) {
+        sanitized[prop] = context[prop as keyof CustomContext];
+      }
+    }
+    
+    if (context.request) {
+      sanitized.request = {
+        url: context.request.url,
+        userData: context.request.userData,
+        // Add other necessary request properties
+      };
+    }
+    
+    return sanitized;
 }
 
 // Crawling logic
 const performCrawl = async (config: CrawlerConfig) => {
-  const { startUrls, linkSelector, globPatterns, excludeGlobPatterns, urlFragments, injectJQuery, pageFunction } = config;
+    const { startUrls, linkSelector, globPatterns, excludeGlobPatterns, urlFragments, injectJQuery, pageFunction } = config;
+  
+    // Initialize MemoryStorage with options
+    const memoryStorage = new MemoryStorage({
+        persistStorage: false, // Don't persist to disk
+        writeMetadata: false, // Don't write metadata files
+    });
 
-  const crawler = new PuppeteerCrawler({
-    maxConcurrency: parseInt(process.env.MAX_CONCURRENT_REQUESTS || '10'),
-    requestHandlerTimeoutSecs: parseInt(process.env.REQUEST_TIMEOUT || '30000') / 1000,
-    maxRequestsPerCrawl: parseInt(process.env.MAX_CRAWL_DEPTH || '5') * startUrls.length,
-    requestHandler: async ({ request, enqueueLinks, log, page }) => {
-      log.info(`Crawling: ${request.url}`);
-  
-      if (injectJQuery) {
-        const jQueryPath = path.resolve(__dirname, 'node_modules/jquery/dist/jquery.min.js');
-        await page.addScriptTag({ path: jQueryPath });
-      }
-  
-      const context = {
-        request,
-        enqueueLinks,
-        log,
-        jQuery: injectJQuery ? await page.evaluate(() => window.jQuery) : null
-      };
-  
-      const sanitizedPageFunction = sanitize(pageFunction);
-      const pageFunctionScript = `
-        (function(context) {
-          ${sanitizedPageFunction}
-        })(arguments[0]);
-      `;
-  
-      try {
-        await page.evaluate(pageFunctionScript, context);
-        await enqueueLinks({ 
-          selector: linkSelector,
-          globs: globPatterns,
-          exclude: excludeGlobPatterns
-        });
-      } catch (error) {
-        log.error(`Error executing page function: ${error}`);
-      }
-    },
-    launchContext: {
-      launchOptions: {
-        headless: process.env.NODE_ENV === 'production',
-      },
-    },
-    preNavigationHooks: [
-      async ({ request }) => {
-        if (!urlFragments) {
-          const url = new URL(request.url);
-          url.hash = '';
-          request.url = url.toString();
-        }
-      },
-    ],
-  });
+    // Configure Crawlee to use MemoryStorage
+    const crawleeConfig = new Configuration({
+        storageClient: memoryStorage,
+    });
+    Configuration.useStorageClient(memoryStorage);
 
-  try {
-    await crawler.addRequests(startUrls);
-    await crawler.run();
-    logger.info('Crawl completed successfully');
-  } catch (error) {
-    logger.error('Crawler run failed:', error);
-    // You might want to implement additional error handling here,
-    // such as notifying an admin or updating a status in a database
-  }
+    // Create a new Dataset instance
+    const dataset = await Dataset.open(null);
+
+    const crawler = new PuppeteerCrawler({
+        maxConcurrency: parseInt(process.env.MAX_CONCURRENT_REQUESTS || '10'),
+        requestHandlerTimeoutSecs: parseInt(process.env.REQUEST_TIMEOUT || '30000') / 1000,
+        maxRequestsPerCrawl: parseInt(process.env.MAX_CRAWL_DEPTH || '5') * startUrls.length,
+        useSessionPool: false, // Disable session pool
+        requestHandler: async (crawlingContext: PuppeteerCrawlingContext) => {
+            const { request, enqueueLinks, log, page } = crawlingContext;
+            log.info(`Crawling: ${request.url}`);
+    
+            if (injectJQuery) {
+                log.info('Injecting jQuery');
+                try {
+                    await page.evaluate(() => {
+                        return new Promise((resolve, reject) => {
+                            const script = document.createElement('script');
+                            script.src = 'https://code.jquery.com/jquery-3.6.0.min.js';
+                            script.onload = resolve;
+                            script.onerror = reject;
+                            document.head.appendChild(script);
+                        });
+                    });
+                    log.info('jQuery injected successfully');
+                } catch (error) {
+                    log.error('Failed to inject jQuery:', { error: error instanceof Error ? error.message : String(error) });
+                }
+            } else {
+                log.info('jQuery injection is disabled');
+            }
+
+            const customContext: CustomContext = {
+                ...crawlingContext,
+                jQuery: injectJQuery ? 'window.jQuery' : undefined
+            };
+    
+            const sanitizedContext = sanitizeContext(customContext);
+    
+            const sanitizedPageFunction = sanitize(`
+                async function pageFunction(context) {
+                    let pageTitle;
+                    if (context.jQuery) {
+                        const $ = context.jQuery;
+                        pageTitle = $('title').first().text();
+                    } else {
+                        pageTitle = document.title;
+                    }
+
+                    context.log.info(\`URL: \${context.request.url}, TITLE: \${pageTitle}\`);
+
+                    return {
+                        url: context.request.url,
+                        pageTitle,
+                    };
+                }
+            `);
+        
+            log.info('Sanitized page function:', { pageFunction: sanitizedPageFunction });
+            log.info('Sanitized context:', { context: JSON.parse(JSON.stringify(sanitizedContext)) });
+
+            try {
+                log.info('Executing page function');
+                const result = await page.evaluate((pageFunc: string, ctx: any) => {
+                    console.log('Page function execution started');
+                    const contextWithLog = {
+                        ...ctx,
+                        log: {
+                            info: (...args: any[]) => console.log('INFO:', ...args),
+                            error: (...args: any[]) => console.error('ERROR:', ...args),
+                        }
+                    };
+                    console.log('Context prepared:', JSON.stringify(contextWithLog, null, 2));
+                    const func = new Function('context', `
+                        ${pageFunc}
+                        return pageFunction(context);
+                    `);
+                    console.log('Function created');
+                    const result = func(contextWithLog);
+                    console.log('Function executed, result:', result);
+                    return result;
+                }, sanitizedPageFunction, sanitizedContext);
+          
+                log.info('Page function execution result:', { result });
+
+                if (typeof result === 'object' && result !== null && 'url' in result && 'pageTitle' in result) {
+                    const typedResult = result as PageFunctionResult;
+                    log.info('Valid result format, pushing to dataset');
+                    await dataset.pushData(typedResult);
+                } else {
+                    log.error('Invalid result format from page function');
+                }
+            } catch (error) {
+                log.error(`Error executing page function: ${error instanceof Error ? error.message : String(error)}`);
+                if (error instanceof Error && error.stack) {
+                    log.error(`Error stack: ${error.stack}`);
+                }
+            }
+    
+            await enqueueLinks({ 
+                selector: linkSelector,
+                globs: globPatterns,
+                exclude: excludeGlobPatterns
+            });
+        },
+        preNavigationHooks: [
+            async ({ request, log }) => {
+                log.info(`Pre-navigation hook for ${request.url}`);
+                if (!urlFragments) {
+                    const url = new URL(request.url);
+                    url.hash = '';
+                    request.url = url.toString();
+                    log.info(`URL after removing hash: ${request.url}`);
+                }
+            },
+        ],
+    });
+  
+    try {
+        logger.info('Adding initial requests:', startUrls);
+        await crawler.addRequests(startUrls);
+        logger.info('Starting crawler run');
+        await crawler.run();
+        logger.info('Crawl completed successfully');
+        const results = await dataset.getData();
+        logger.info(`Retrieved ${results.items.length} results from dataset`);
+        return results.items;
+    } catch (error) {
+        logger.error('Crawler run failed:', error);
+        throw error;
+    } finally {
+        // Clean up resources
+        await dataset.drop();
+        Configuration.resetGlobalState(); // Reset the global configuration
+    }
 };
 
 // Start crawl endpoint
@@ -159,12 +275,8 @@ app.post('/start-crawl', async (req: Request, res: Response, next: NextFunction)
 
     logger.info('Starting crawl with configuration:', value);
 
-    // Perform crawl asynchronously
-    performCrawl(value as CrawlerConfig).catch(error => {
-      logger.error('Crawl failed:', error);
-    });
-
-    res.status(202).json({ message: 'Crawl started successfully' });
+    const results = await performCrawl(value as CrawlerConfig);
+    res.status(200).json(results);
   } catch (error) {
     next(error);
   }

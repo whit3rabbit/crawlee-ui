@@ -19,7 +19,7 @@ const ResultsDisplay: React.FC = () => {
     return <Text color="red">{error}</Text>;
   }
 
-  if (results.length === 0) {
+  if (!Array.isArray(results) || results.length === 0) {
     return <Text>No results to display.</Text>;
   }
 

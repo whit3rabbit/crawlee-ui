@@ -3,6 +3,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 interface CrawlResult {
   url: string;
   pageTitle: string;
+  [key: string]: any; // Allow for additional properties
 }
 
 interface CrawlState {
