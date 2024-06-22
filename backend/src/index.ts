@@ -143,75 +143,78 @@ const performCrawl = async (config: CrawlerConfig) => {
             log.info(`Crawling: ${request.url}`);
     
             if (injectJQuery) {
-                log.info('Injecting jQuery');
-                try {
-                    await page.evaluate(() => {
-                        return new Promise((resolve, reject) => {
-                            const script = document.createElement('script');
-                            script.src = 'https://code.jquery.com/jquery-3.6.0.min.js';
-                            script.onload = resolve;
-                            script.onerror = reject;
-                            document.head.appendChild(script);
-                        });
-                    });
-                    log.info('jQuery injected successfully');
-                } catch (error) {
-                    log.error('Failed to inject jQuery:', { error: error instanceof Error ? error.message : String(error) });
-                }
-            } else {
-                log.info('jQuery injection is disabled');
-            }
-
-            const customContext: CustomContext = {
-                ...crawlingContext,
-                jQuery: injectJQuery ? 'window.jQuery' : undefined
-            };
+              log.info('Injecting jQuery');
+              try {
+                  await page.evaluate(() => {
+                      return new Promise((resolve, reject) => {
+                          const script = document.createElement('script');
+                          script.src = 'https://code.jquery.com/jquery-3.6.0.min.js';
+                          script.onload = resolve;
+                          script.onerror = reject;
+                          document.head.appendChild(script);
+                      });
+                  });
+                  // Wait a bit to ensure jQuery is fully loaded and initialized
+                  await page.waitForFunction(() => typeof window.jQuery === 'function');
+                  log.info('jQuery injected successfully');
+              } catch (error) {
+                  log.error('Failed to inject jQuery:', { error: error instanceof Error ? error.message : String(error) });
+              }
+          } else {
+              log.info('jQuery injection is disabled');
+          }
+          
+          const customContext: CustomContext = {
+              ...crawlingContext,
+              jQuery: injectJQuery // Change this to a boolean instead of a string
+          };          
     
             const sanitizedContext = sanitizeContext(customContext);
     
             const sanitizedPageFunction = sanitize(`
-                async function pageFunction(context) {
-                    let pageTitle;
-                    if (context.jQuery) {
-                        const $ = context.jQuery;
-                        pageTitle = $('title').first().text();
-                    } else {
-                        pageTitle = document.title;
-                    }
-
-                    context.log.info(\`URL: \${context.request.url}, TITLE: \${pageTitle}\`);
-
-                    return {
-                        url: context.request.url,
-                        pageTitle,
-                    };
-                }
-            `);
+              async function pageFunction(context) {
+                  let pageTitle;
+                  if (context.jQuery) {
+                      const $ = context.jQuery;
+                      pageTitle = $('title').first().text();
+                  } else {
+                      pageTitle = document.title;
+                  }
+          
+                  context.log.info(\`URL: \${context.request.url}, TITLE: \${pageTitle}\`);
+          
+                  return {
+                      url: context.request.url,
+                      pageTitle,
+                  };
+              }
+          `);
         
             log.info('Sanitized page function:', { pageFunction: sanitizedPageFunction });
             log.info('Sanitized context:', { context: JSON.parse(JSON.stringify(sanitizedContext)) });
 
             try {
                 log.info('Executing page function');
-                const result = await page.evaluate((pageFunc: string, ctx: any) => {
-                    console.log('Page function execution started');
-                    const contextWithLog = {
-                        ...ctx,
-                        log: {
-                            info: (...args: any[]) => console.log('INFO:', ...args),
-                            error: (...args: any[]) => console.error('ERROR:', ...args),
-                        }
-                    };
-                    console.log('Context prepared:', JSON.stringify(contextWithLog, null, 2));
-                    const func = new Function('context', `
-                        ${pageFunc}
-                        return pageFunction(context);
-                    `);
-                    console.log('Function created');
-                    const result = func(contextWithLog);
-                    console.log('Function executed, result:', result);
-                    return result;
-                }, sanitizedPageFunction, sanitizedContext);
+                const result = await page.evaluate((pageFunc: string, ctx: any, injectJQuery: boolean) => {
+                  console.log('Page function execution started');
+                  const contextWithLog = {
+                      ...ctx,
+                      jQuery: injectJQuery ? window.jQuery : undefined, // Correctly pass jQuery to the context
+                      log: {
+                          info: (...args: any[]) => console.log('INFO:', ...args),
+                          error: (...args: any[]) => console.error('ERROR:', ...args),
+                      }
+                  };
+                  console.log('Context prepared:', JSON.stringify(contextWithLog, null, 2));
+                  const func = new Function('context', `
+                      ${pageFunc}
+                      return pageFunction(context);
+                  `);
+                  console.log('Function created');
+                  const result = func(contextWithLog);
+                  console.log('Function executed, result:', result);
+                  return result;
+              }, sanitizedPageFunction, sanitizedContext, injectJQuery);
           
                 log.info('Page function execution result:', { result });
 
