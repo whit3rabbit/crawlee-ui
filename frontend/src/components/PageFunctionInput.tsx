@@ -3,7 +3,8 @@ import { useFormContext, Controller } from 'react-hook-form';
 import { Textarea } from '@mantine/core';
 
 const PageFunctionInput: React.FC = () => {
-  const { control } = useFormContext();
+  const { control, watch } = useFormContext();
+  const injectJQuery = watch('injectJQuery');
 
   return (
     <Controller
@@ -14,7 +15,7 @@ const PageFunctionInput: React.FC = () => {
         <Textarea
           {...field}
           label="Page function"
-          description="Input JavaScript (ES6) function that is executed in the context of every page loaded in the Chrome browser."
+          description={`Input JavaScript (ES6) function that is executed in the context of every page loaded in the Chrome browser. jQuery is ${injectJQuery ? 'available' : 'not available'}.`}
           error={error?.message}
           required
           autosize

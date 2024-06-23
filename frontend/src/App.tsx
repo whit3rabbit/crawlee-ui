@@ -4,6 +4,7 @@ import { MantineProvider, Container, Title, Group } from '@mantine/core';
 import { store } from './store';
 import ConfigurationForm from './components/ConfigurationForm';
 import ResultsDisplay from './components/ResultsDisplay';
+import '@mantine/code-highlight/styles.css';
 
 const App: React.FC = () => {
   return (

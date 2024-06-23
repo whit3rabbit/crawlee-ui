@@ -13,14 +13,8 @@ interface FormData {
   globPatterns: string;
   excludeGlobPatterns: string;
   urlFragments: boolean;
-  pageFunction: string;
   injectJQuery: boolean;
-}
-
-interface CrawlResult {
-  url: string;
-  pageTitle: string;
-  [key: string]: any; 
+  pageFunction: string;
 }
 
 const ConfigurationForm: React.FC = () => {
@@ -32,27 +26,54 @@ const ConfigurationForm: React.FC = () => {
       globPatterns: 'https://crawlee.dev/*/*',
       excludeGlobPatterns: '/**/*.{png,jpg,jpeg,pdf}',
       urlFragments: false,
-      injectJQuery: false, 
+      injectJQuery: true,
       pageFunction: `// The function accepts a single argument: the "context" object.
-// For a complete list of its properties and functions,
-// see https://apify.com/apify/web-scraper#page-function 
 async function pageFunction(context) {
-    // This statement works as a breakpoint when you're trying to debug your code. Works only with Run mode: DEVELOPMENT!
-    // debugger; 
+    let pageTitle, h1, first_h2, random_text_from_the_page, main_content;
 
-    // jQuery is handy for finding DOM elements and extracting data from them.
-    // To use it, make sure to enable the "Inject jQuery" option.
-    const $ = context.jQuery;
-    const pageTitle = $('title').first().text();
+    if (context.jQuery) {
+        const $ = context.jQuery;
+        pageTitle = $('title').first().text();
+        h1 = $('h1').first().text();
+        first_h2 = $('h2').first().text();
+        random_text_from_the_page = $('p').first().text();
 
-    // Print some information to actor log
+        const contentSelectors = ['article', '.content', '#main-content', '.main'];
+        for (const selector of contentSelectors) {
+            main_content = $(selector).text().trim();
+            if (main_content) break;
+        }
+        if (!main_content) {
+            main_content = $('body').text().trim();
+        }
+    } else {
+        pageTitle = document.title;
+        h1 = document.querySelector('h1')?.textContent?.trim() || '';
+        first_h2 = document.querySelector('h2')?.textContent?.trim() || '';
+        random_text_from_the_page = document.querySelector('p')?.textContent?.trim() || '';
+
+        const contentSelectors = ['article', '.content', '#main-content', '.main'];
+        for (const selector of contentSelectors) {
+            const element = document.querySelector(selector);
+            if (element) {
+                main_content = element.textContent.trim();
+                break;
+            }
+        }
+        if (!main_content) {
+            main_content = document.body.textContent.trim();
+        }
+    }
+
     context.log.info(\`URL: \${context.request.url}, TITLE: \${pageTitle}\`);
 
-    // Return an object with the data extracted from the page.
-    // It will be stored to the resulting dataset.
     return {
         url: context.request.url,
         pageTitle,
+        h1,
+        first_h2,
+        random_text_from_the_page,
+        main_content: main_content.substring(0, 1000)
     };
 }`
     }
@@ -61,7 +82,7 @@ async function pageFunction(context) {
   const onSubmit = async (data: FormData) => {
     dispatch(startCrawl());
     try {
-      // Prepare the data to match the backend schema
+      // Convert globPatterns and excludeGlobPatterns to arrays
       const preparedData = {
         ...data,
         globPatterns: data.globPatterns.split(',').map(pattern => pattern.trim()),
@@ -81,7 +102,7 @@ async function pageFunction(context) {
         throw new Error(errorData.error || 'Failed to start crawl');
       }
       
-      const results: CrawlResult[] = await response.json();
+      const results = await response.json();
       dispatch(crawlSuccess(results));
     } catch (error) {
       if (error instanceof Error) {
