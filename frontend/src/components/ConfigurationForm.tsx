@@ -15,6 +15,18 @@ interface FormData {
   urlFragments: boolean;
   injectJQuery: boolean;
   pageFunction: string;
+  headless: boolean;
+  ignoreSSLErrors: boolean;
+  ignoreCORSAndCSP: boolean;
+  downloadMediaFiles: boolean;
+  downloadCSSFiles: boolean;
+  maxPageRetries: number;
+  maxPagesPerRun: number;
+  maxResultRecords: number;
+  maxCrawlingDepth: number;
+  maxConcurrency: number;
+  pageLoadTimeout: number;
+  pageFunctionTimeout: number;
 }
 
 const ConfigurationForm: React.FC = () => {
@@ -75,7 +87,19 @@ async function pageFunction(context) {
         random_text_from_the_page,
         main_content: main_content.substring(0, 1000)
     };
-}`
+}`,
+      headless: true,
+      ignoreSSLErrors: false,
+      ignoreCORSAndCSP: false,
+      downloadMediaFiles: false,
+      downloadCSSFiles: false,
+      maxPageRetries: 5,
+      maxPagesPerRun: 100,
+      maxResultRecords: 1000,
+      maxCrawlingDepth: 3,
+      maxConcurrency: 10,
+      pageLoadTimeout: 180,
+      pageFunctionTimeout: 180
     }
   });
 
