@@ -26,6 +26,12 @@ export interface FormData {
   maxConcurrency: number;
   pageLoadTimeout: number;
   pageFunctionTimeout: number;
+  fields: {
+    [key: string]: {
+      name: string;
+      selector: string;
+    }
+  };
 }
 
 const App = () => {
@@ -39,54 +45,54 @@ const App = () => {
       urlFragments: false,
       injectJQuery: true,
       pageFunction: `// The function accepts a single argument: the "context" object.
-async function pageFunction(context) {
-    let pageTitle, h1, first_h2, random_text_from_the_page, main_content;
-
-    if (context.jQuery) {
-        const $ = context.jQuery;
-        pageTitle = $('title').first().text();
-        h1 = $('h1').first().text();
-        first_h2 = $('h2').first().text();
-        random_text_from_the_page = $('p').first().text();
-
-        const contentSelectors = ['article', '.content', '#main-content', '.main'];
-        for (const selector of contentSelectors) {
-            main_content = $(selector).text().trim();
-            if (main_content) break;
-        }
-        if (!main_content) {
-            main_content = $('body').text().trim();
-        }
-    } else {
-        pageTitle = document.title;
-        h1 = document.querySelector('h1')?.textContent?.trim() || '';
-        first_h2 = document.querySelector('h2')?.textContent?.trim() || '';
-        random_text_from_the_page = document.querySelector('p')?.textContent?.trim() || '';
-
-        const contentSelectors = ['article', '.content', '#main-content', '.main'];
-        for (const selector of contentSelectors) {
-            const element = document.querySelector(selector);
-            if (element) {
-                main_content = element.textContent.trim();
-                break;
-            }
-        }
-        if (!main_content) {
-            main_content = document.body.textContent.trim();
-        }
-    }
-
-    context.log.info(\`URL: \${context.request.url}, TITLE: \${pageTitle}\`);
-
-    return {
-        url: context.request.url,
-        pageTitle,
-        h1,
-        first_h2,
-        random_text_from_the_page,
-        main_content: main_content.substring(0, 1000)
-    };
-}`,
+      async function pageFunction(context) {
+          let pageTitle, h1, first_h2, random_text_from_the_page, main_content;
+      
+          if (context.jQuery) {
+              const $ = context.jQuery;
+              pageTitle = $('title').first().text();
+              h1 = $('h1').first().text();
+              first_h2 = $('h2').first().text();
+              random_text_from_the_page = $('p').first().text();
+      
+              const contentSelectors = ['article', '.content', '#main-content', '.main'];
+              for (const selector of contentSelectors) {
+                  main_content = $(selector).text().trim();
+                  if (main_content) break;
+              }
+              if (!main_content) {
+                  main_content = $('body').text().trim();
+              }
+          } else {
+              pageTitle = document.title;
+              h1 = document.querySelector('h1')?.textContent?.trim() || '';
+              first_h2 = document.querySelector('h2')?.textContent?.trim() || '';
+              random_text_from_the_page = document.querySelector('p')?.textContent?.trim() || '';
+      
+              const contentSelectors = ['article', '.content', '#main-content', '.main'];
+              for (const selector of contentSelectors) {
+                  const element = document.querySelector(selector);
+                  if (element) {
+                      main_content = element.textContent.trim();
+                      break;
+                  }
+              }
+              if (!main_content) {
+                  main_content = document.body.textContent.trim();
+              }
+          }
+      
+          context.log.info(\`URL: \${context.url}, TITLE: \${pageTitle}\`);
+      
+          return {
+              url: context.url,
+              pageTitle,
+              h1,
+              first_h2,
+              random_text_from_the_page,
+              main_content: main_content?.substring(0, 1000)
+          };
+      }`,
       headless: true,
       ignoreSSLErrors: false,
       ignoreCORSAndCSP: false,
@@ -98,7 +104,13 @@ async function pageFunction(context) {
       maxCrawlingDepth: 3,
       maxConcurrency: 10,
       pageLoadTimeout: 180,
-      pageFunctionTimeout: 180
+      pageFunctionTimeout: 180,
+      fields: {
+        title: { name: 'title', selector: 'title' },
+        h1: { name: 'h1', selector: 'h1' },
+        body: { name: 'body', selector: 'body' },
+        meta_description: { name: 'meta_description', selector: 'meta[name="description"]' },
+      },
     }
   });
 
@@ -118,6 +130,7 @@ async function pageFunction(context) {
                     <Tabs.List>
                       <Tabs.Tab value="basic">Basic Settings</Tabs.Tab>
                       <Tabs.Tab value="advanced">Advanced Settings</Tabs.Tab>
+                      <Tabs.Tab value="fields">Field Selection</Tabs.Tab>
                       <Tabs.Tab value="pageFunction">Page Function</Tabs.Tab>
                       <Tabs.Tab value="startCrawl">Start Crawl</Tabs.Tab>
                     </Tabs.List>
@@ -127,6 +140,9 @@ async function pageFunction(context) {
                     </Tabs.Panel>
                     <Tabs.Panel value="advanced">
                       <ConfigurationForm section="advanced" />
+                    </Tabs.Panel>
+                    <Tabs.Panel value="fields">
+                      <ConfigurationForm section="fields" />
                     </Tabs.Panel>
                     <Tabs.Panel value="pageFunction">
                       <ConfigurationForm section="pageFunction" />
