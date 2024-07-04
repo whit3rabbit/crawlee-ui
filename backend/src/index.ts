@@ -183,7 +183,7 @@ const performCrawl = async (config: CrawlerConfig) => {
     },
     requestHandler: async (crawlingContext) => {
       const { request, enqueueLinks, page, log } = crawlingContext;
-      log.info(`Crawling: ${request.url}`);
+      logger.info(`Crawling: ${request.url}`);
 
       let jQueryAvailable = false;
       if (injectJQuery) {
@@ -199,9 +199,9 @@ const performCrawl = async (config: CrawlerConfig) => {
           });
           await page.waitForFunction(() => typeof window.jQuery === 'function');
           jQueryAvailable = true;
-          log.info('jQuery injected successfully');
+          logger.info('jQuery injected successfully');
         } catch (error) {
-          log.error('Failed to inject jQuery:', { error: error instanceof Error ? error.message : String(error) });
+          logger.error('Failed to inject jQuery:', { error: error instanceof Error ? error.message : String(error) });
         }
       }
 
@@ -222,14 +222,14 @@ const performCrawl = async (config: CrawlerConfig) => {
           return func(context);
         }, { pageFunc: pageFunction, jQueryAvailable, fields });
 
-        log.info('Page function execution completed for URL:', { url: request.url });
-        log.debug('Page function execution result:', { url: request.url, result });
+        logger.info('Page function execution completed for URL:', { url: request.url });
+        logger.debug('Page function execution result:', { url: request.url, result });
 
         await dataset.pushData(result);
       } catch (error) {
-        log.error(`Error executing page function for URL ${request.url}:`, { error: error instanceof Error ? error.message : String(error) });
+        logger.error(`Error executing page function for URL ${request.url}:`, { error: error instanceof Error ? error.message : String(error) });
         if (error instanceof Error && error.stack) {
-          log.error(`Error stack for URL ${request.url}:`, { stack: error.stack });
+          logger.error(`Error stack for URL ${request.url}:`, { stack: error.stack });
         }
       }
 
@@ -254,10 +254,10 @@ const performCrawl = async (config: CrawlerConfig) => {
     await crawler.addRequests(startUrls);
     await crawler.run();
     const results = await dataset.getData();
-    log.info(`Crawl completed. Processed ${results.items.length} pages.`);
+    logger.info(`Crawl completed. Processed ${results.items.length} pages.`);
     return results.items;
   } catch (error) {
-    log.error('Error during crawl:', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Error during crawl:', { error: error instanceof Error ? error.message : String(error) });
     throw error;
   } finally {
     await dataset.drop();
