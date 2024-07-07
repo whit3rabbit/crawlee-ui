@@ -4,6 +4,7 @@ import { useDispatch } from 'react-redux';
 import { useFormContext } from 'react-hook-form';
 import { startCrawl, crawlSuccess, crawlFailure } from '../store/crawlSlice';
 import { FormData } from '../App'; 
+import TerminalOutput from './TerminalOutput';
 
 const StartCrawl: React.FC = () => {
   const dispatch = useDispatch();
@@ -17,7 +18,8 @@ const StartCrawl: React.FC = () => {
       const preparedData = {
         ...formData,
         globPatterns: formData.globPatterns.split(',').map((pattern: string) => pattern.trim()),
-        excludeGlobPatterns: formData.excludeGlobPatterns.split(',').map((pattern: string) => pattern.trim())
+        excludeGlobPatterns: formData.excludeGlobPatterns.split(',').map((pattern: string) => pattern.trim()),
+        fields: formData.fields // This is now an object, no need to transform
       };
 
       const response = await fetch('http://localhost:3001/start-crawl', {
@@ -50,6 +52,8 @@ const StartCrawl: React.FC = () => {
       <Button onClick={handleStartCrawl} fullWidth>
         Start Crawl
       </Button>
+
+      <TerminalOutput />
     </Box>
   );
 };

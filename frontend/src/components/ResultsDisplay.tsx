@@ -1,44 +1,63 @@
 import React, { useState } from 'react';
 import { useSelector } from 'react-redux';
-import { Table, Text, Paper, Title, Loader, Tabs, Box } from '@mantine/core';
+import { Table, Text, Paper, Title, Loader, Tabs, Box, Button, Group } from '@mantine/core';
 import { CodeHighlight } from '@mantine/code-highlight';
 import { RootState } from '../store';
+import { IconDownload } from '@tabler/icons-react';
 
 interface CrawlResult {
-  url: string;
-  pageTitle: string;
-  h1: string;
-  first_h2: string;
-  random_text_from_the_page: string;
-  main_content: string;
+  [key: string]: string | number | boolean | null;
 }
 
 const ResultsDisplay: React.FC = () => {
   const { results, isLoading, error } = useSelector((state: RootState) => state.crawl);
   const [activeTab, setActiveTab] = useState<string | null>('table');
 
+  const downloadJSON = () => {
+    const jsonString = JSON.stringify(results, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'crawl_results.json';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const downloadCSV = () => {
+    if (results.length === 0) return;
+
+    const headers = Object.keys(results[0]);
+    const csvContent = [
+      headers.join(','),
+      ...results.map(result =>
+        headers.map(header => 
+          `"${(result[header] ?? '').toString().replace(/"/g, '""')}"`
+        ).join(',')
+      )
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'crawl_results.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   if (isLoading) {
-    return (
-      <Box h="100%" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Loader size="xl" />
-      </Box>
-    );
+    return <Loader size="xl" />;
   }
 
   if (error) {
-    return (
-      <Box h="100%" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Text color="red">{error}</Text>
-      </Box>
-    );
+    return <Text color="red">{error}</Text>;
   }
 
-  if (!Array.isArray(results) || results.length === 0) {
-    return (
-      <Box h="100%" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Text>No results to display.</Text>
-      </Box>
-    );
+  if (!results || results.length === 0) {
+    return <Text>No results to display.</Text>;
   }
 
   const renderTable = () => (
@@ -46,21 +65,19 @@ const ResultsDisplay: React.FC = () => {
       <Table>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>URL</Table.Th>
-            <Table.Th>Title</Table.Th>
-            <Table.Th>H1</Table.Th>
-            <Table.Th>First H2</Table.Th>
-            <Table.Th>First Paragraph</Table.Th>
+            {Object.keys(results[0]).map((header) => (
+              <Table.Th key={header}>{header}</Table.Th>
+            ))}
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
           {results.map((result: CrawlResult, index: number) => (
             <Table.Tr key={index}>
-              <Table.Td>{result.url}</Table.Td>
-              <Table.Td>{result.pageTitle}</Table.Td>
-              <Table.Td>{result.h1}</Table.Td>
-              <Table.Td>{result.first_h2}</Table.Td>
-              <Table.Td>{result.random_text_from_the_page}</Table.Td>
+              {Object.entries(result).map(([key, value]) => (
+                <Table.Td key={key}>
+                  {value !== null && value !== undefined ? value.toString() : ''}
+                </Table.Td>
+              ))}
             </Table.Tr>
           ))}
         </Table.Tbody>
@@ -78,17 +95,12 @@ const ResultsDisplay: React.FC = () => {
     <Box style={{ maxHeight: '400px', overflow: 'auto' }}>
       <CodeHighlight
         code={results.map((result: CrawlResult) => `
-# ${result.url}
+# ${result.url || 'No URL'}
 
-## ${result.pageTitle}
-
-### ${result.h1}
-
-#### ${result.first_h2}
-
-${result.random_text_from_the_page}
-
-${result.main_content}
+${Object.entries(result)
+  .filter(([key]) => key !== 'url')
+  .map(([key, value]) => `## ${key}\n\n${value}\n`)
+  .join('\n')}
 
 ---
         `).join('\n')}
@@ -100,6 +112,14 @@ ${result.main_content}
   return (
     <Paper p="md" h="100%">
       <Title order={2} mb="md">Crawl Results</Title>
+      <Group mb="md">
+        <Button leftSection={<IconDownload size={14} />} onClick={downloadJSON}>
+          Download JSON
+        </Button>
+        <Button leftSection={<IconDownload size={14} />} onClick={downloadCSV}>
+          Download CSV
+        </Button>
+      </Group>
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List>
           <Tabs.Tab value="table">Table</Tabs.Tab>
@@ -107,15 +127,9 @@ ${result.main_content}
           <Tabs.Tab value="markdown">Markdown</Tabs.Tab>
         </Tabs.List>
 
-        <Tabs.Panel value="table">
-          {renderTable()}
-        </Tabs.Panel>
-        <Tabs.Panel value="json">
-          {renderJson()}
-        </Tabs.Panel>
-        <Tabs.Panel value="markdown">
-          {renderMarkdown()}
-        </Tabs.Panel>
+        <Tabs.Panel value="table">{renderTable()}</Tabs.Panel>
+        <Tabs.Panel value="json">{renderJson()}</Tabs.Panel>
+        <Tabs.Panel value="markdown">{renderMarkdown()}</Tabs.Panel>
       </Tabs>
     </Paper>
   );
