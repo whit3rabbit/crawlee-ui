@@ -9,44 +9,6 @@ const CrawlSettings: React.FC = () => {
   return (
     <Stack>
       <Text size="lg" fw={500}>Crawl Settings</Text>
-
-      <Controller
-        name="linkSelector"
-        control={control}
-        render={({ field }) => (
-          <TextInput
-            {...field}
-            label="Link Selector"
-            placeholder="Enter link selector"
-            required
-          />
-        )}
-      />
-
-      <Controller
-        name="globPatterns"
-        control={control}
-        render={({ field }) => (
-          <TextInput
-            {...field}
-            label="Glob Patterns"
-            placeholder="Enter glob patterns separated by commas"
-          />
-        )}
-      />
-
-      <Controller
-        name="excludeGlobPatterns"
-        control={control}
-        render={({ field }) => (
-          <TextInput
-            {...field}
-            label="Exclude Glob Patterns"
-            placeholder="Enter exclude glob patterns separated by commas"
-          />
-        )}
-      />
-
       <Group grow>
         <Controller
           name="urlFragments"
